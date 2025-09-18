@@ -1,0 +1,57 @@
+# .github/workflows/scrape.yml
+
+name: Scrape Substack Search Results
+
+# This makes the workflow runnable from n8n's API call
+on:
+  repository_dispatch:
+    types: [n8n-trigger]
+
+jobs:
+  scrape-and-return:
+    runs-on: ubuntu-latest
+    steps:
+      # Step 1: Set up Node.js environment
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+
+      # Step 2: Install Playwright (the browser automation tool)
+      - name: Install Playwright
+        run: npm install playwright-core
+
+      # Step 3: Run the scraper script for Substack
+      # This script launches a browser, goes to the search page, and grabs the titles of all the results.
+      - name: Run Playwright and Scrape Data
+        id: scrape_step # Give this step an ID to reference its output later
+        run: |
+          # Use node to execute a small script
+          scraped_json=$(node -e "
+            const { chromium } = require('playwright-core');
+            async function run() {
+              const browser = await chromium.launch();
+              const page = await browser.newPage();
+              // --- This is the URL you provided ---
+              await page.goto('https://substack.com/search/banjercito?searching=all_posts', { waitUntil: 'domcontentloaded' });
+              
+              // --- This selector targets the post titles on the Substack page ---
+              const titles = await page.locator('[data-testid=\"post-preview-title\"]').allInnerTexts();
+              await browser.close();
+
+              // Convert the array of titles into a JSON string
+              return JSON.stringify(titles);
+            }
+            run().then(console.log);
+          ")
+          # Save the scraped JSON string as an output variable
+          echo "scraped_json=$scraped_json" >> $GITHUB_OUTPUT
+
+      # Step 4: Send the scraped data back to your n8n webhook
+      - name: Send data to n8n
+        run: |
+          # Use curl to make a POST request to the webhook URL stored in secrets
+          # The payload now sends a JSON array of the titles we found
+          curl -X POST -H "Content-Type: application/json" \
+          -d "{\"postTitles\": ${{ steps.scrape_step.outputs.scraped_json }} }" \
+          "${{ secrets.N8N_WEBHOOK_URL }}"
