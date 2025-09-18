@@ -29,23 +29,40 @@ jobs:
             async function run() {
               const browser = await chromium.launch();
               const page = await browser.newPage();
-              await page.goto('https://substack.com/search/banjercito?searching=all_posts', { waitUntil: 'domcontentloaded' });
-              
-              // --- THIS IS THE NEW LINE ---
-              // Wait for the first post title to appear on the page
-              await page.waitForSelector('[data-testid=\"post-preview-title\"]');
+              try {
+                await page.goto('https://substack.com/search/banjercito?searching=all_posts', { waitUntil: 'domcontentloaded' });
+                
+                // --- THIS IS THE NEW DEBUGGING STEP ---
+                // Take a screenshot to see what the page looks like
+                await page.screenshot({ path: 'debug.png', fullPage: true });
 
-              // Now that we know the content is loaded, scrape all the titles
-              const titles = await page.locator('[data-testid=\"post-preview-title\"]').allInnerTexts();
-              await browser.close();
-
-              return JSON.stringify(titles);
+                // We'll still try to wait, but we expect this to fail
+                await page.waitForSelector('[data-testid=\"post-preview-title\"]', { timeout: 10000 }); // Shorten timeout to 10s
+                
+                const titles = await page.locator('[data-testid=\"post-preview-title\"]').allInnerTexts();
+                return JSON.stringify(titles);
+              } catch (e) {
+                console.error(e.name, e.message); // Log the error name
+                return '[]'; // Return empty array on failure
+              } finally {
+                await browser.close();
+              }
             }
             run().then(console.log);
           ")
           echo "scraped_json=$scraped_json" >> $GITHUB_OUTPUT
+      
+      # --- THIS STEP UPLOADS THE SCREENSHOT ---
+      - name: Upload Debug Screenshot
+        if: always() # This makes the step run even if the previous step fails
+        uses: actions/upload-artifact@v4
+        with:
+          name: debug-screenshot
+          path: debug.png
 
+      # This step will likely not run, but we leave it for when we fix the script
       - name: Send data to n8n
+        if: success()
         run: |
           curl -X POST -H "Content-Type: application/json" \
           -d "{\"postTitles\": ${{ steps.scrape_step.outputs.scraped_json }} }" \
