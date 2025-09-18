@@ -2,7 +2,6 @@
 
 name: Scrape Substack Search Results
 
-# This makes the workflow runnable from n8n's API call
 on:
   repository_dispatch:
     types: [n8n-trigger]
@@ -11,26 +10,20 @@ jobs:
   scrape-and-return:
     runs-on: ubuntu-latest
     steps:
-      # Step 1: Set up Node.js environment
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '18'
 
-      # Step 2: Install Playwright library
       - name: Install Playwright library
         run: npm install playwright-core
 
-      # --- THIS IS THE NEW STEP ---
-      # Step 3: Install the browser needed by Playwright
       - name: Install Playwright Browsers
         run: npx playwright install chromium
 
-      # Step 4: Run the scraper script for Substack
       - name: Run Playwright and Scrape Data
         id: scrape_step 
         run: |
-          # Use node to execute a small script
           scraped_json=$(node -e "
             const { chromium } = require('playwright-core');
             async function run() {
@@ -38,6 +31,11 @@ jobs:
               const page = await browser.newPage();
               await page.goto('https://substack.com/search/banjercito?searching=all_posts', { waitUntil: 'domcontentloaded' });
               
+              // --- THIS IS THE NEW LINE ---
+              // Wait for the first post title to appear on the page
+              await page.waitForSelector('[data-testid=\"post-preview-title\"]');
+
+              // Now that we know the content is loaded, scrape all the titles
               const titles = await page.locator('[data-testid=\"post-preview-title\"]').allInnerTexts();
               await browser.close();
 
@@ -47,7 +45,6 @@ jobs:
           ")
           echo "scraped_json=$scraped_json" >> $GITHUB_OUTPUT
 
-      # Step 5: Send the scraped data back to your n8n webhook
       - name: Send data to n8n
         run: |
           curl -X POST -H "Content-Type: application/json" \
