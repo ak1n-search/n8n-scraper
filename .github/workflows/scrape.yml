@@ -1,6 +1,6 @@
 # .github/workflows/scrape.yml
 
-name: Scrape Substack Search Results
+name: Scrape Substack with Stealth
 
 on:
   repository_dispatch:
@@ -15,8 +15,9 @@ jobs:
         with:
           node-version: '18'
 
-      - name: Install Playwright library
-        run: npm install playwright-core
+      # --- CHANGE 1: Install the new 'stealth' packages ---
+      - name: Install Playwright Stealth library
+        run: npm install playwright-extra playwright-extra-plugin-stealth playwright-core
 
       - name: Install Playwright Browsers
         run: npx playwright install chromium
@@ -25,44 +26,31 @@ jobs:
         id: scrape_step 
         run: |
           scraped_json=$(node -e "
-            const { chromium } = require('playwright-core');
+            // --- CHANGE 2: Use 'playwright-extra' and the stealth plugin ---
+            const { chromium } = require('playwright-extra');
+            const StealthPlugin = require('playwright-extra-plugin-stealth');
+            chromium.use(StealthPlugin());
+
             async function run() {
               const browser = await chromium.launch();
               const page = await browser.newPage();
-              try {
-                await page.goto('https://substack.com/search/banjercito?searching=all_posts', { waitUntil: 'domcontentloaded' });
-                
-                // --- THIS IS THE NEW DEBUGGING STEP ---
-                // Take a screenshot to see what the page looks like
-                await page.screenshot({ path: 'debug.png', fullPage: true });
+              await page.goto('https://substack.com/search/banjercito?searching=all_posts', { waitUntil: 'domcontentloaded' });
+              
+              // Wait for the first post title to appear on the page
+              // We'll give it a longer timeout to see if the stealth plugin helps
+              await page.waitForSelector('[data-testid=\"post-preview-title\"]', { timeout: 45000 });
 
-                // We'll still try to wait, but we expect this to fail
-                await page.waitForSelector('[data-testid=\"post-preview-title\"]', { timeout: 10000 }); // Shorten timeout to 10s
-                
-                const titles = await page.locator('[data-testid=\"post-preview-title\"]').allInnerTexts();
-                return JSON.stringify(titles);
-              } catch (e) {
-                console.error(e.name, e.message); // Log the error name
-                return '[]'; // Return empty array on failure
-              } finally {
-                await browser.close();
-              }
+              // Now that we know the content is loaded, scrape all the titles
+              const titles = await page.locator('[data-testid=\"post-preview-title\"]').allInnerTexts();
+              await browser.close();
+
+              return JSON.stringify(titles);
             }
             run().then(console.log);
           ")
           echo "scraped_json=$scraped_json" >> $GITHUB_OUTPUT
-      
-      # --- THIS STEP UPLOADS THE SCREENSHOT ---
-      - name: Upload Debug Screenshot
-        if: always() # This makes the step run even if the previous step fails
-        uses: actions/upload-artifact@v4
-        with:
-          name: debug-screenshot
-          path: debug.png
 
-      # This step will likely not run, but we leave it for when we fix the script
       - name: Send data to n8n
-        if: success()
         run: |
           curl -X POST -H "Content-Type: application/json" \
           -d "{\"postTitles\": ${{ steps.scrape_step.outputs.scraped_json }} }" \
