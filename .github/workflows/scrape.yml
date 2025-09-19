@@ -15,8 +15,11 @@ jobs:
         with:
           node-version: '18'
 
-      # --- THIS IS THE ONLY LINE THAT HAS CHANGED ---
-      # Install the full playwright package along with the stealth extras
+      # --- THIS IS THE NEW STEP ---
+      # Clean npm cache and modules to ensure a fresh install
+      - name: Clean Install Environment
+        run: rm -rf node_modules package-lock.json
+
       - name: Install Playwright & Stealth libraries
         run: npm install playwright playwright-extra playwright-extra-plugin-stealth
 
