@@ -15,9 +15,10 @@ jobs:
         with:
           node-version: '18'
 
-      # --- CHANGE 1: Install the new 'stealth' packages ---
-      - name: Install Playwright Stealth library
-        run: npm install playwright-extra playwright-extra-plugin-stealth playwright-core
+      # --- THIS IS THE ONLY LINE THAT HAS CHANGED ---
+      # Install the full playwright package along with the stealth extras
+      - name: Install Playwright & Stealth libraries
+        run: npm install playwright playwright-extra playwright-extra-plugin-stealth
 
       - name: Install Playwright Browsers
         run: npx playwright install chromium
@@ -26,7 +27,6 @@ jobs:
         id: scrape_step 
         run: |
           scraped_json=$(node -e "
-            // --- CHANGE 2: Use 'playwright-extra' and the stealth plugin ---
             const { chromium } = require('playwright-extra');
             const StealthPlugin = require('playwright-extra-plugin-stealth');
             chromium.use(StealthPlugin());
@@ -36,11 +36,8 @@ jobs:
               const page = await browser.newPage();
               await page.goto('https://substack.com/search/banjercito?searching=all_posts', { waitUntil: 'domcontentloaded' });
               
-              // Wait for the first post title to appear on the page
-              // We'll give it a longer timeout to see if the stealth plugin helps
               await page.waitForSelector('[data-testid=\"post-preview-title\"]', { timeout: 45000 });
 
-              // Now that we know the content is loaded, scrape all the titles
               const titles = await page.locator('[data-testid=\"post-preview-title\"]').allInnerTexts();
               await browser.close();
 
