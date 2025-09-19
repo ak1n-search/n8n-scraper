@@ -1,6 +1,6 @@
 # .github/workflows/scrape.yml
 
-name: Scrape Substack with Stealth
+name: Scrape Substack with Browserless
 
 on:
   repository_dispatch:
@@ -15,36 +15,41 @@ jobs:
         with:
           node-version: '18'
 
-      # --- THIS IS THE NEW STEP ---
-      # Clean npm cache and modules to ensure a fresh install
-      - name: Clean Install Environment
-        run: rm -rf node_modules package-lock.json
-
-      - name: Install Playwright & Stealth libraries
-        run: npm install playwright playwright-extra playwright-extra-plugin-stealth
-
-      - name: Install Playwright Browsers
-        run: npx playwright install chromium
+      # Install only the full Playwright package
+      - name: Install Playwright
+        run: npm install playwright
 
       - name: Run Playwright and Scrape Data
         id: scrape_step 
         run: |
           scraped_json=$(node -e "
-            const { chromium } = require('playwright-extra');
-            const StealthPlugin = require('playwright-extra-plugin-stealth');
-            chromium.use(StealthPlugin());
-
+            const { chromium } = require('playwright');
+            
             async function run() {
-              const browser = await chromium.launch();
-              const page = await browser.newPage();
-              await page.goto('https://substack.com/search/banjercito?searching=all_posts', { waitUntil: 'domcontentloaded' });
-              
-              await page.waitForSelector('[data-testid=\"post-preview-title\"]', { timeout: 45000 });
+              let browser;
+              try {
+                // Connect to a powerful browser from Browserless.io
+                const browserWSEndpoint = 'wss://chrome.browserless.io?token=${{ secrets.BROWSERLESS_API_KEY }}';
+                browser = await chromium.connectOverCDP(browserWSEndpoint);
+                const page = await browser.newPage();
+                
+                await page.goto('https://substack.com/search/banjercito?searching=all_posts', { waitUntil: 'domcontentloaded' });
+                
+                // Wait for the first post title to appear on the page
+                await page.waitForSelector('[data-testid=\"post-preview-title\"]', { timeout: 45000 });
 
-              const titles = await page.locator('[data-testid=\"post-preview-title\"]').allInnerTexts();
-              await browser.close();
+                // Scrape all the titles
+                const titles = await page.locator('[data-testid=\"post-preview-title\"]').allInnerTexts();
+                return JSON.stringify(titles);
 
-              return JSON.stringify(titles);
+              } catch (e) {
+                console.error(e.name, e.message);
+                return '[]'; // Return an empty array if anything goes wrong
+              } finally {
+                if (browser) {
+                  await browser.close();
+                }
+              }
             }
             run().then(console.log);
           ")
