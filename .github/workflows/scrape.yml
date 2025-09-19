@@ -15,7 +15,6 @@ jobs:
         with:
           node-version: '18'
 
-      # Install only the full Playwright package
       - name: Install Playwright
         run: npm install playwright
 
@@ -28,23 +27,25 @@ jobs:
             async function run() {
               let browser;
               try {
-                // Connect to a powerful browser from Browserless.io
                 const browserWSEndpoint = 'wss://chrome.browserless.io?token=${{ secrets.BROWSERLESS_API_KEY }}';
                 browser = await chromium.connectOverCDP(browserWSEndpoint);
                 const page = await browser.newPage();
                 
                 await page.goto('https://substack.com/search/banjercito?searching=all_posts', { waitUntil: 'domcontentloaded' });
                 
-                // Wait for the first post title to appear on the page
+                // --- THIS IS THE NEW LINE ---
+                // Wait 10 seconds for the Cloudflare challenge to complete
+                await page.waitForTimeout(10000);
+
+                // Now that the page has had time to load, look for the titles
                 await page.waitForSelector('[data-testid=\"post-preview-title\"]', { timeout: 45000 });
 
-                // Scrape all the titles
                 const titles = await page.locator('[data-testid=\"post-preview-title\"]').allInnerTexts();
                 return JSON.stringify(titles);
 
               } catch (e) {
                 console.error(e.name, e.message);
-                return '[]'; // Return an empty array if anything goes wrong
+                return '[]';
               } finally {
                 if (browser) {
                   await browser.close();
