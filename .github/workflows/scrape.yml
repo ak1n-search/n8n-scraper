@@ -56,6 +56,6 @@ jobs:
 
       - name: Send data to n8n
         run: |
-          curl -X POST -H "Content-Type: application/json" \
+          curl -X POST -H "Content-TYPE": "application/json" \
           -d "{\"postTitles\": ${{ steps.scrape_step.outputs.scraped_json }} }" \
           "${{ secrets.N8N_WEBHOOK_URL }}"
