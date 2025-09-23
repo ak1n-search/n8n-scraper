@@ -1,6 +1,6 @@
 # .github/workflows/scrape.yml
 
-name: Scrape Substack with Puppeteer
+name: Scrape Substack with Puppeteer (Base64)
 
 on:
   repository_dispatch:
@@ -21,37 +21,8 @@ jobs:
       - name: Run Puppeteer and Scrape Data
         id: scrape_step 
         run: |
-          scraped_json=$(node -e "
-            const puppeteer = require('puppeteer-extra');
-            const StealthPlugin = require('puppeteer-extra-plugin-stealth');
-            puppeteer.use(StealthPlugin());
-
-            async function run() {
-              let browser;
-              try {
-                browser = await puppeteer.launch({ headless: true, args: ['--no-sandbox'] });
-                const page = await browser.newPage();
-                
-                await page.goto('https://substack.com/search/banjercito?searching=all_posts', { waitUntil: 'domcontentloaded' });
-                
-                await page.waitForSelector('[data-testid=\"post-preview-title\"]', { timeout: 45000 });
-
-                // THIS IS THE CORRECTED LINE
-                const titles = await page.$$eval('[data-testid=\"post-preview-title\"]', elements => elements.map(el => el.innerText));
-                
-                return JSON.stringify(titles);
-
-              } catch (e) {
-                console.error(e.name, e.message);
-                return '[]';
-              } finally {
-                if (browser) {
-                  await browser.close();
-                }
-              }
-            }
-            run().then(console.log);
-          ")
+          # Decode the Base64 script and pipe it into Node.js to execute
+          scraped_json=$(echo "Y29uc3QgcHVwcGV0ZWVyID0gcmVxdWlyZSgncHVwcGV0ZWVyLWV4dHJhJyk7CmMvbnN0IFN0ZWFsdGhQbHVnaW4gPSByZXF1aXJlKCdwdXBwZXRlZXItZXh0cmEtcGx1Z2luLXN0ZWFsdGgnKTsKcHVwcGV0ZWVyLnVzZShTdGVhbHRoUGx1Z2luKCkpOwoKYXN5bmMgZnVuY3Rpb24gcnVuKCkgewogIGxldCBicm93c2VyOwogIHRyeSB7CiAgICBicm93c2VyID0gYXdhaXQgcHVwcGV0ZWVyLmxhdW5jaCh7IGhlYWRsZXNzOiB0cnVlLCBhcmdzOiBbJy0tbm8tc2FuZGJveCddIH0pOwogICAgY29uc3QgcGFnZSA9IGF3YWl0IGJyb3dzZXIubmV3UGFnZSgpOwogICAgCiAgICBhd2FpdCBwYWdlLmdvdG8oJ2h0dHBzOi8vc3Vic3RhY2suY29tL3NlYXJjaC9iYW5qZXJjaXRvP3NlYXJjaGluZz1hbGxfcG9zdHMnLCB7IHdhaXRVbnRpbDogJ2RvbWNvbnRlbnRsb2FkZWQnIH0pOwogICAgCiAgICBhd2FpdCBwYWdlLndhaXRGb3JTZWxlY3RvcignW2RhdGEtdGVzdGlkPVwicG9zdC1wcmV2aWV3LXRpdGxlXCJdJywgeyB0aW1lb3V0OiA0NTAwMCB9KTsKCiAgICBjb25zdCB0aXRsZXMgPSBhd2FpdCBwYWdlLiQkZXZhbCgnW2RhdGEtdGVzdGlkPVwicG9zdC1wcmV2aWV3LXRpdGxlXCJdJywgZWxlbWVudHMgPT4gZWxlbWVudHMubWFwKGVsID0+IGVsLmlubmVyVGV4dCkpOwogICAgCiAgICByZXR1cm4gSlNPTi5zdHJpbmdpZnkodGl0bGVzKTsKCiAgfSBjYXRjaCAoZSkgewogICAgY29uc29sZS5lcnJvcihlLm5hbWUsIGUubWVzc2FnZSk7CiAgICByZXR1cm4gJ1tdJzsKICB9IGZpbmFsbHkgewogICAgaWYgKGJyb3dzZXIpIHsKICAgICAgYXdhaXQgYnJvd3Nlci5jbG9zZSgpOwogICAgfQogIH0KfQpydW4oKS50aGVuKGNvbnNvbGUubG9nKTs=" | base64 --decode | node)
           echo "scraped_json=$scraped_json" >> $GITHUB_OUTPUT
 
       - name: Send data to n8n
