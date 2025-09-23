@@ -15,7 +15,6 @@ jobs:
         with:
           node-version: '18'
 
-      # Install Puppeteer and its stealth plugin
       - name: Install Puppeteer & Stealth libraries
         run: npm install puppeteer puppeteer-extra puppeteer-extra-plugin-stealth
 
@@ -30,17 +29,16 @@ jobs:
             async function run() {
               let browser;
               try {
-                // Launch the browser using Puppeteer
                 browser = await puppeteer.launch({ headless: true, args: ['--no-sandbox'] });
                 const page = await browser.newPage();
                 
                 await page.goto('https://substack.com/search/banjercito?searching=all_posts', { waitUntil: 'domcontentloaded' });
                 
-                // Wait for the first post title to appear on the page
                 await page.waitForSelector('[data-testid=\"post-preview-title\"]', { timeout: 45000 });
 
-                // Scrape all the titles using Puppeteer's syntax
+                // --- THIS LINE IS CORRECTED ---
                 const titles = await page.$$eval('[data-testid=\"post-preview-title\"]', elements => elements.map(el => el.innerText));
+                
                 return JSON.stringify(titles);
 
               } catch (e) {
