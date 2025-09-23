@@ -36,7 +36,7 @@ jobs:
                 
                 await page.waitForSelector('[data-testid=\"post-preview-title\"]', { timeout: 45000 });
 
-                // --- THIS IS THE CORRECTED LINE ---
+                // THIS IS THE CORRECTED LINE
                 const titles = await page.$$eval('[data-testid=\"post-preview-title\"]', elements => elements.map(el => el.innerText));
                 
                 return JSON.stringify(titles);
