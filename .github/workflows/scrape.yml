@@ -1,6 +1,6 @@
 # .github/workflows/scrape.yml
 
-name: Scrape Substack with Browserless
+name: Scrape Substack with Puppeteer
 
 on:
   repository_dispatch:
@@ -15,32 +15,32 @@ jobs:
         with:
           node-version: '18'
 
-      - name: Install Playwright
-        run: npm install playwright
+      # Install Puppeteer and its stealth plugin
+      - name: Install Puppeteer & Stealth libraries
+        run: npm install puppeteer puppeteer-extra puppeteer-extra-plugin-stealth
 
-      - name: Run Playwright and Scrape Data
+      - name: Run Puppeteer and Scrape Data
         id: scrape_step 
         run: |
           scraped_json=$(node -e "
-            const { chromium } = require('playwright');
-            
+            const puppeteer = require('puppeteer-extra');
+            const StealthPlugin = require('puppeteer-extra-plugin-stealth');
+            puppeteer.use(StealthPlugin());
+
             async function run() {
               let browser;
               try {
-                const browserWSEndpoint = 'wss://chrome.browserless.io?token=${{ secrets.BROWSERLESS_API_KEY }}';
-                browser = await chromium.connectOverCDP(browserWSEndpoint);
+                // Launch the browser using Puppeteer
+                browser = await puppeteer.launch({ headless: true, args: ['--no-sandbox'] });
                 const page = await browser.newPage();
                 
                 await page.goto('https://substack.com/search/banjercito?searching=all_posts', { waitUntil: 'domcontentloaded' });
                 
-                // --- THIS IS THE NEW LINE ---
-                // Wait 10 seconds for the Cloudflare challenge to complete
-                await page.waitForTimeout(10000);
-
-                // Now that the page has had time to load, look for the titles
+                // Wait for the first post title to appear on the page
                 await page.waitForSelector('[data-testid=\"post-preview-title\"]', { timeout: 45000 });
 
-                const titles = await page.locator('[data-testid=\"post-preview-title\"]').allInnerTexts();
+                // Scrape all the titles using Puppeteer's syntax
+                const titles = await page.$$eval('[data-testid=\"post-preview-title\"]', elements => elements.map(el => el.innerText));
                 return JSON.stringify(titles);
 
               } catch (e) {
